@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blomidentifierare - Viktor K</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #f0f2f5; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px; width: 100%; text-align: center; }
+        #status-box { padding: 15px; margin: 20px 0; border-radius: 8px; font-weight: bold; }
+        .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .ready { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        #image-preview { max-width: 100%; height: auto; margin-top: 20px; border-radius: 8px; display: none; }
+        #result { margin-top: 20px; font-size: 1.4em; color: #333; }
+        .author { margin-top: 40px; color: #777; font-size: 0.9em; }
+        input[type="file"] { margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Blomidentifiering</h1>
+        
+        <div id="status-box" class="loading">Status: Laddar modell...</div>
+
+        <input type="file" id="image-upload" accept="image/*" disabled>
+        
+        <img id="image-preview" alt="Förhandsvisning av uppladdad bild">
+        
+        <div id="result"></div>
+
+        <p class="author">Utvecklad av: Viktor K SA23A</p>
+    </div>
+
+    <script>
+        let model;
+        const statusBox = document.getElementById('status-box');
+        const imageUpload = document.getElementById('image-upload');
+        const imagePreview = document.getElementById('image-preview');
+        const resultDiv = document.getElementById('result');
+
+        // Klassnamn (justera dessa om din modell har andra arter)
+        const FLOWER_CLASSES = ['Solros', 'Maskros', 'Ros', 'Tulpan', 'Prästkrage'];
+
+        async function loadModel() {
+            try {
+                // Sökvägen är nu inställd på mappen tfjs_model
+                model = await tf.loadLayersModel('tfjs_model/model.json');
+                statusBox.textContent = 'Status: Modellen är redo';
+                statusBox.className = 'ready';
+                imageUpload.disabled = false;
+            } catch (error) {
+                statusBox.textContent = 'Status: Fel vid laddning';
+                statusBox.className = 'error';
+                console.error("Kunde inte ladda modellen:", error);
+            }
+        }
+
+        imageUpload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+                imagePreview.onload = () => predict();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        async function predict() {
+            if (!model) return;
+
+            resultDiv.innerHTML = '<i>Analyserar bild...</i>';
+
+            // Bearbetar bilden (modellen kräver 224x224 pixlar)
+            const tensor = tf.browser.fromPixels(imagePreview)
+                .resizeNearestNeighbor([224, 224])
+                .toFloat()
+                .expandDims();
+
+            // Normalisering (0-1)
+            const normalized = tensor.div(255.0);
+
+            const predictions = await model.predict(normalized).data();
+            const maxVal = Math.max(...predictions);
+            const classIndex = predictions.indexOf(maxVal);
+            
+            const name = FLOWER_CLASSES[classIndex] || "Okänd art";
+            const chance = (maxVal * 100).toFixed(1);
+
+            resultDiv.innerHTML = `Resultat: <strong>${name}</strong><br><small>Sannolikhet: ${chance}%</small>`;
+        }
+
+        loadModel();
+    </script>
+</body>
+</html>
